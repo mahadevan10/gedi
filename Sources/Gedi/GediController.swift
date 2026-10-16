@@ -132,6 +132,8 @@ final class GediController {
     }
 
     private func heard(_ text: String, isFinal: Bool) {
+        // Shows how the recogniser spells things, for wake-word calibration.
+        if isFinal, !text.isEmpty { log.info("heard: \(text, privacy: .public)") }
         if let event = listen.heard(text, isFinal: isFinal, at: Date()) { handle(event) }
     }
 
