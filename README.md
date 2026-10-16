@@ -52,7 +52,7 @@ scripts/test.sh                          # unit tests (GediCore)
 swift build --product gedi-debug
 .build/debug/gedi-debug                  # lists commands: say, transcribe, comment, reply, activity, listen…
 .build/debug/Gedi --snapshot /tmp/s.png  # render the character + bubble to a PNG
-log stream --predicate 'subsystem == "com.mahadevan.gedi"' --level info   # app logs
+/usr/bin/log stream --predicate 'subsystem == "com.mahadevan.gedi"' --level info   # app logs
 ```
 
 `GEDI_CONFIG=/path/to/config.json` points both binaries at a different config file.
