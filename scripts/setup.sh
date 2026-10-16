@@ -1,18 +1,20 @@
 #!/usr/bin/env bash
 # One-time setup. Safe to re-run: every step skips work that is already done.
 #   1. Ollama model            (GEDI_MODEL, default qwen3.5:9b)
-#   2. Indic-Parler-TTS in a venv  ~/Library/Application Support/Gedi/tts-venv
-#   3. Model download (gated: needs a Hugging Face login with access granted)
-#   4. parler_server.py copied next to it
+#   2. Piper TTS in a venv     ~/Library/Application Support/Gedi/piper-venv
+#   3. Malayalam voice         ml_IN-arjun-medium
+#   4. Piper smoke test
 #   5. persona.md + clips/clips.json (only if missing, never overwritten)
 #   6. Apple's ml-IN speech model
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 SUPPORT="$HOME/Library/Application Support/Gedi"
-VENV="$SUPPORT/tts-venv"
+VENV="$SUPPORT/piper-venv"
+VOICES="$SUPPORT/voices"
+VOICE=ml_IN-arjun-medium
 MODEL="${GEDI_MODEL:-qwen3.5:9b}"
-mkdir -p "$SUPPORT/clips"
+mkdir -p "$VOICES" "$SUPPORT/clips"
 
 echo "==> 1/6 Ollama model $MODEL"
 command -v ollama >/dev/null || { echo "ollama not installed: https://ollama.com/download"; exit 1; }
@@ -22,24 +24,29 @@ else
   ollama pull "$MODEL"
 fi
 
-echo "==> 2/6 Parler TTS venv"
+echo "==> 2/6 Piper venv"
 command -v uv >/dev/null || { echo "uv not installed: brew install uv"; exit 1; }
 [ -x "$VENV/bin/python" ] || uv venv --python 3.12 "$VENV"
-UV_HTTP_TIMEOUT=300 uv pip install --quiet --python "$VENV/bin/python" torch soundfile \
-  "parler-tts @ git+https://github.com/huggingface/parler-tts.git"
+UV_HTTP_TIMEOUT=300 uv pip install --quiet --python "$VENV/bin/python" "piper-tts[http]==1.8.0"
 
-echo "==> 3/6 Indic-Parler-TTS model (about 3.7 GB)"
-if ! "$VENV/bin/hf" download ai4bharat/indic-parler-tts >/dev/null; then
-  echo "Download failed. The model is gated:"
-  echo "  1. accept the terms at https://huggingface.co/ai4bharat/indic-parler-tts"
-  echo "  2. run in Terminal: \"$VENV/bin/hf\" auth login"
+echo "==> 3/6 Voice $VOICE"
+if [ -f "$VOICES/$VOICE.onnx" ]; then
+  echo "    already downloaded"
+else
+  "$VENV/bin/python" -m piper.download_voices --download-dir "$VOICES" "$VOICE"
+fi
+
+echo "==> 4/6 Piper smoke test"
+SMOKE="$(mktemp -t gedi-smoke).wav"
+echo "ഗഡീ" | "$VENV/bin/python" -m piper -m "$VOICE" --data-dir "$VOICES" -f "$SMOKE" 2>"$SMOKE.log" || true
+if [ "$(stat -f%z "$SMOKE" 2>/dev/null || echo 0)" -lt 1000 ]; then
+  cat "$SMOKE.log"
+  echo "Piper produced no audio. If the error mentions /Users/runner/.../phontab, the venv path is"
+  echo "too long for espeak-ng (~160 chars max for .../site-packages/piper/espeak-ng-data)."
   exit 1
 fi
-echo "    ok"
-
-echo "==> 4/6 TTS server script"
-cp scripts/parler_server.py "$SUPPORT/parler_server.py"
-echo "    copied to $SUPPORT/parler_server.py"
+echo "    ok ($(stat -f%z "$SMOKE") bytes)"
+rm -f "$SMOKE" "$SMOKE.log"
 
 echo "==> 5/6 persona.md and clips/clips.json"
 swift build --product gedi-debug >/dev/null

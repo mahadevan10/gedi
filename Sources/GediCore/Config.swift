@@ -10,9 +10,10 @@ public struct GediConfig: Codable, Equatable, Sendable {
     public var wakeWords: [String]
     public var silenceSeconds: Double
     public var followUpSeconds: Double
-    public var ttsPython: String
-    public var ttsScript: String
-    public var ttsPort: Int
+    public var piperPython: String
+    public var piperVoice: String
+    public var piperDataDir: String
+    public var piperPort: Int
 
     public init(
         model: String,
@@ -22,9 +23,10 @@ public struct GediConfig: Codable, Equatable, Sendable {
         wakeWords: [String],
         silenceSeconds: Double,
         followUpSeconds: Double,
-        ttsPython: String,
-        ttsScript: String,
-        ttsPort: Int
+        piperPython: String,
+        piperVoice: String,
+        piperDataDir: String,
+        piperPort: Int
     ) {
         self.model = model
         self.ollamaURL = ollamaURL
@@ -33,9 +35,10 @@ public struct GediConfig: Codable, Equatable, Sendable {
         self.wakeWords = wakeWords
         self.silenceSeconds = silenceSeconds
         self.followUpSeconds = followUpSeconds
-        self.ttsPython = ttsPython
-        self.ttsScript = ttsScript
-        self.ttsPort = ttsPort
+        self.piperPython = piperPython
+        self.piperVoice = piperVoice
+        self.piperDataDir = piperDataDir
+        self.piperPort = piperPort
     }
 
     public static let `default` = GediConfig(
@@ -46,9 +49,10 @@ public struct GediConfig: Codable, Equatable, Sendable {
         wakeWords: ["gadi", "gadhi", "gade", "gedi", "gedhi", "gede", "ഗഡി", "ഗെഡി"],
         silenceSeconds: 1.5,
         followUpSeconds: 8,
-        ttsPython: "~/Library/Application Support/Gedi/tts-venv/bin/python",
-        ttsScript: "~/Library/Application Support/Gedi/parler_server.py",
-        ttsPort: 5917
+        piperPython: "~/Library/Application Support/Gedi/piper-venv/bin/python",
+        piperVoice: "ml_IN-arjun-medium",
+        piperDataDir: "~/Library/Application Support/Gedi/voices",
+        piperPort: 5917
     )
 
     public init(from decoder: Decoder) throws {
@@ -61,9 +65,10 @@ public struct GediConfig: Codable, Equatable, Sendable {
         wakeWords = try c.decodeIfPresent([String].self, forKey: .wakeWords) ?? d.wakeWords
         silenceSeconds = try c.decodeIfPresent(Double.self, forKey: .silenceSeconds) ?? d.silenceSeconds
         followUpSeconds = try c.decodeIfPresent(Double.self, forKey: .followUpSeconds) ?? d.followUpSeconds
-        ttsPython = try c.decodeIfPresent(String.self, forKey: .ttsPython) ?? d.ttsPython
-        ttsScript = try c.decodeIfPresent(String.self, forKey: .ttsScript) ?? d.ttsScript
-        ttsPort = try c.decodeIfPresent(Int.self, forKey: .ttsPort) ?? d.ttsPort
+        piperPython = try c.decodeIfPresent(String.self, forKey: .piperPython) ?? d.piperPython
+        piperVoice = try c.decodeIfPresent(String.self, forKey: .piperVoice) ?? d.piperVoice
+        piperDataDir = try c.decodeIfPresent(String.self, forKey: .piperDataDir) ?? d.piperDataDir
+        piperPort = try c.decodeIfPresent(Int.self, forKey: .piperPort) ?? d.piperPort
     }
 
     /// Missing file → defaults. Malformed file → throws (so a typo is reported, not silently ignored).

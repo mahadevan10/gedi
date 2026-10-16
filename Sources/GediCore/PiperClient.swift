@@ -5,7 +5,7 @@ public enum PiperError: Error, Equatable {
     case notWAV
 }
 
-/// Talks to Piper's HTTP API (served by parler_server.py). POST /synthesize {"text": …} → WAV bytes.
+/// Talks to `python -m piper.http_server`. POST /synthesize {"text": …} → WAV bytes.
 public struct PiperClient: Sendable {
     public var baseURL: URL
     public var session: URLSession
@@ -23,7 +23,7 @@ public struct PiperClient: Sendable {
         var req = URLRequest(url: baseURL.appendingPathComponent("synthesize"))
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.timeoutInterval = 120  // Parler takes 10+ s per line
+        req.timeoutInterval = 30
         req.httpBody = try JSONEncoder().encode(["text": text])
         let (data, response) = try await session.data(for: req)
         let status = (response as? HTTPURLResponse)?.statusCode ?? -1
