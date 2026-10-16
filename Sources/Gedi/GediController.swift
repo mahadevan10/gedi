@@ -81,7 +81,7 @@ final class GediController {
             try await piper.start()
         } catch {
             log.error("piper: \(String(describing: error), privacy: .public)")
-            show("Piper start aayilla. scripts/setup.sh run cheyy.", for: 10)
+            show("TTS start aayilla. scripts/setup.sh run cheyy.", for: 10)
         }
         await startMic()
     }

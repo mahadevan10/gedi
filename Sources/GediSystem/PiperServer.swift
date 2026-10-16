@@ -3,19 +3,20 @@ import GediCore
 
 public enum PiperServerError: Error, CustomStringConvertible {
     case pythonMissing(String)
-    case voiceMissing(String)
+    case scriptMissing(String)
     case notReady(log: String)
 
     public var description: String {
         switch self {
-        case .pythonMissing(let p): return "Piper Python not found at \(p). Run scripts/setup.sh."
-        case .voiceMissing(let p): return "Piper voice not found at \(p). Run scripts/setup.sh."
-        case .notReady(let log): return "Piper server did not start. Log:\n\(log)"
+        case .pythonMissing(let p): return "TTS Python not found at \(p). Run scripts/setup.sh."
+        case .scriptMissing(let p): return "TTS server script not found at \(p). Run scripts/setup.sh."
+        case .notReady(let log): return "TTS server did not start. Log:\n\(log)"
         }
     }
 }
 
-/// Runs `python -m piper.http_server` as a child process so the voice stays loaded.
+/// Runs `parler_server.py` (Indic-Parler-TTS behind Piper's HTTP API) as a child process
+/// so the model stays loaded.
 /// If something already answers on the port (e.g. left over from a crash), it is reused.
 public final class PiperServer: @unchecked Sendable {
     private let config: GediConfig
@@ -25,23 +26,22 @@ public final class PiperServer: @unchecked Sendable {
 
     public init(config: GediConfig) {
         self.config = config
-        self.client = PiperClient(port: config.piperPort)
+        self.client = PiperClient(port: config.ttsPort)
     }
 
-    public func start(timeout: TimeInterval = 20) async throws {
+    /// Loading the model and its warm-up run take a while, hence the long timeout.
+    public func start(timeout: TimeInterval = 180) async throws {
         if await client.isReady() { return }
-        let python = GediPaths.expand(config.piperPython)
-        let dataDir = GediPaths.expand(config.piperDataDir)
-        let voice = "\(dataDir)/\(config.piperVoice).onnx"
+        let python = GediPaths.expand(config.ttsPython)
+        let script = GediPaths.expand(config.ttsScript)
         guard FileManager.default.isExecutableFile(atPath: python) else { throw PiperServerError.pythonMissing(python) }
-        guard FileManager.default.fileExists(atPath: voice) else { throw PiperServerError.voiceMissing(voice) }
+        guard FileManager.default.fileExists(atPath: script) else { throw PiperServerError.scriptMissing(script) }
 
         FileManager.default.createFile(atPath: logURL.path, contents: nil)
         let log = try FileHandle(forWritingTo: logURL)
         let p = Process()
         p.executableURL = URL(fileURLWithPath: python)
-        p.arguments = ["-m", "piper.http_server", "-m", config.piperVoice, "--data-dir", dataDir,
-                       "--host", "127.0.0.1", "--port", String(config.piperPort)]
+        p.arguments = ["-I", script, "--host", "127.0.0.1", "--port", String(config.ttsPort)]
         p.standardOutput = log
         p.standardError = log
         try p.run()

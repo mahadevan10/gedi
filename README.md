@@ -10,18 +10,19 @@ Everything runs on the Mac:
 |---|---|
 | Brain | Qwen (`qwen3.5:9b` by default) served by Ollama |
 | Ears | Apple SpeechAnalyzer, `ml-IN` (on-device; writes Malayalam in Latin letters) |
-| Voice | Piper TTS, `ml_IN-arjun-medium`, plus clips you record yourself |
+| Voice | Indic-Parler-TTS (AI4Bharat, voice "Harish"), plus clips you record yourself |
 | Eyes | Frontmost app + the active Chrome/Safari tab (AppleScript) |
 
 ## Requirements
 
 macOS 26+, Apple silicon, Command Line Tools (`xcode-select --install`), [Ollama](https://ollama.com/download)
-running, and [uv](https://docs.astral.sh/uv/) (`brew install uv`).
+running, [uv](https://docs.astral.sh/uv/) (`brew install uv`), and a Hugging Face account that has
+accepted the terms of [ai4bharat/indic-parler-tts](https://huggingface.co/ai4bharat/indic-parler-tts).
 
 ## Setup
 
 ```bash
-scripts/setup.sh                 # model, Piper + voice, persona, speech model (re-runnable)
+scripts/setup.sh                 # model, Parler TTS, persona, speech model (re-runnable)
 scripts/bundle.sh                # builds build/Gedi.app
 open build/Gedi.app
 ```
@@ -37,7 +38,7 @@ Everything lives in `~/Library/Application Support/Gedi/`:
 - `config.json`: optional overrides, e.g.
   `{"model": "qwen3.5:4b", "commentIntervalSeconds": 60, "wakeWords": ["gadi", "gadhi", "gade", "gedi"]}`.
   Keys: `model`, `ollamaURL`, `commentIntervalSeconds`, `localeID`, `wakeWords`, `silenceSeconds`,
-  `followUpSeconds`, `piperPython`, `piperVoice`, `piperDataDir`, `piperPort`.
+  `followUpSeconds`, `ttsPython`, `ttsScript`, `ttsPort`.
 - `clips/`: your own recordings. Put `shorts_again.m4a` there and add it to `clips/clips.json`:
   ```json
   [{"id": "shorts_again", "file": "shorts_again.m4a", "text": "എന്തൂട്ടാ ഗഡീ, പിന്നേം ഷോർട്സ്?", "use": "user is on YouTube Shorts or Reels"}]

@@ -9,7 +9,7 @@ import Testing
     #expect(config.commentIntervalSeconds == 45)
     #expect(config.localeID == "ml-IN")
     #expect(config.wakeWords == GediConfig.default.wakeWords)
-    #expect(config.piperPort == 5917)
+    #expect(config.ttsPort == 5917)
 }
 
 @Test func missingFileGivesDefaults() throws {

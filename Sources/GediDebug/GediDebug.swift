@@ -10,7 +10,7 @@ struct GediDebug {
       persona                         print the built-in persona (setup copies it to Application Support)
       install-speech [locale]         download Apple's speech model (default ml-IN)
       transcribe <file> [locale]      transcribe an audio file
-      say <text> [--out file.wav]     speak Malayalam text with Piper (or save the WAV)
+      say <text> [--out file.wav]     speak Malayalam text with Parler (or save the WAV)
       comment <activity> [--model m]  ask the LLM for an unprompted comment
       reply <utterance> [activity] [--model m]   ask the LLM to answer the user
       activity [seconds]              print the classified frontmost activity every 2 s
