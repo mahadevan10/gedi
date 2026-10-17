@@ -73,6 +73,14 @@ what you're doing to Google's Gemini API. You run it at your own risk. The autho
 not responsible for any data loss, damage to your machine, privacy issues, API charges,
 or any other problem that comes from using this code.
 
+**FYI on API keys:** if you give Gedi an API key (Gemini, Groq or any other hosted
+provider), every comment and reply sends that provider what's on your screen: the
+frontmost app, the browser tab title and URL, and what you said. Some providers,
+especially on free tiers, may keep that data and use it to train their models. Check
+their terms before you use a key, and be careful what you have open while Gedi is
+running. A local LLM through Ollama (`{"chatURL": null, "model": "qwen3.5:9b"}`) keeps
+everything on your Mac and is the safest option.
+
 ## License
 
 [MIT](LICENSE). The software is provided "as is", without warranty of any kind, and the
