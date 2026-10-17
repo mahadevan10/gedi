@@ -64,3 +64,16 @@ swift build --product gedi-debug
 ```
 
 `GEDI_CONFIG=/path/to/config.json` points both binaries at a different config file.
+
+## Disclaimer
+
+Gedi listens to your microphone, reads your frontmost app and browser tab, controls
+Chrome/Safari through AppleScript, downloads models, and (with the default brain) sends
+what you're doing to Google's Gemini API. You run it at your own risk. The authors are
+not responsible for any data loss, damage to your machine, privacy issues, API charges,
+or any other problem that comes from using this code.
+
+## License
+
+[MIT](LICENSE). The software is provided "as is", without warranty of any kind, and the
+authors are not liable for any claim, damages or other liability arising from its use.
