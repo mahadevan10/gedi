@@ -79,6 +79,13 @@ final class GediController {
     // MARK: services
 
     private func startServices() async {
+        // Local brain: launch Ollama.app in the background (no-op if it's already running).
+        if config.chatURL == nil,
+           let ollama = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.electron.ollama") {
+            let open = NSWorkspace.OpenConfiguration()
+            open.activates = false
+            _ = try? await NSWorkspace.shared.openApplication(at: ollama, configuration: open)
+        }
         do {
             try await piper.start()
             Task { await speak(GediReply(speak: true, line: "ഗഡി എത്തീട്ടാ.")) }

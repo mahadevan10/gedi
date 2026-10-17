@@ -16,3 +16,8 @@ cp "$BIN" "$APP/Contents/MacOS/Gedi"
 cp App/Info.plist "$APP/Contents/Info.plist"
 codesign --force --sign "${GEDI_SIGN_IDENTITY:--}" "$APP"
 echo "built $APP"
+
+# Install where Spotlight/Launchpad find it; the app starts Piper (and Ollama if it's the brain) itself.
+rm -rf /Applications/Gedi.app
+cp -R "$APP" /Applications/Gedi.app
+echo "installed /Applications/Gedi.app"
