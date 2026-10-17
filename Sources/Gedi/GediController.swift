@@ -42,7 +42,7 @@ final class GediController {
         piper = PiperServer(config: config)
         voice = GediVoice(piper: piper.client, clips: clips)
         brain = GediBrain(
-            model: OllamaClient(baseURL: config.ollamaURL, model: config.model),
+            model: config.chatModel(),
             builder: PromptBuilder(persona: Persona.load(from: GediPaths.personaFile), clips: clips.clips))
         listen = ListenSession(
             matcher: WakeWordMatcher(wakeWords: config.wakeWords),
@@ -51,7 +51,9 @@ final class GediController {
     }
 
     func start() {
-        let overlay = OverlayController(stage: stage)
+        let overlay = OverlayController(stage: stage, onPinned: { [weak self] in
+            Task { await self?.comment(on: Self.pinnedEvent) }
+        })
         overlay.show()
         self.overlay = overlay
         menu = StatusMenu(
@@ -79,6 +81,7 @@ final class GediController {
     private func startServices() async {
         do {
             try await piper.start()
+            Task { await speak(GediReply(speak: true, line: "ഗഡി എത്തീട്ടാ.")) }
         } catch {
             log.error("piper: \(String(describing: error), privacy: .public)")
             show("Piper start aayilla. scripts/setup.sh run cheyy.", for: 10)
@@ -159,7 +162,19 @@ final class GediController {
         activityLog.summary(now: Date()).promptText()
     }
 
-    private func comment() async {
+    private static let pinnedEvent = "The user just grabbed you with the mouse and pinned you to one spot on the screen, "
+        + "so you can't walk around any more. Complain about it sarcastically."
+
+    /// Spoken when the model call fails (Gemini down, quota, no network).
+    private static func brainDeadReply() -> GediReply {
+        GediReply(speak: true, line: [
+            "എന്റെ തലച്ചോറ് ഇപ്പൊ ലീവിലാ ഗഡീ. പിന്നെ നോക്ക്.",
+            "തലച്ചോറ് ഹാങ്ങായി ഗഡീ. ഗൂഗിളിന്റെ കറന്റ് പോയീന്ന് തോന്നുണു.",
+            "ഓ, എന്റെ ബുദ്ധി ഇപ്പൊ വർക്ക് ചെയ്യണില്ല്യ. നിന്റെ പോലെ തന്നെ.",
+        ].randomElement()!)
+    }
+
+    private func comment(on event: String? = nil) async {
         guard !commentInFlight, !replyInFlight, !speaking else { return }
         commentInFlight = true
         defer {
@@ -167,12 +182,13 @@ final class GediController {
             lastSpokeAt = Date()
         }
         do {
-            guard let r = try await brain.comment(activity: activityText), r.speak else { return }
+            guard let r = try await brain.comment(activity: activityText, event: event), r.speak else { return }
             // The user may have started talking to Gedi while the model was thinking.
             guard listen.phase == .idle else { return }
             await speak(r)
         } catch {
             log.error("comment: \(String(describing: error), privacy: .public)")
+            if listen.phase == .idle { await speak(Self.brainDeadReply()) }
         }
     }
 
@@ -189,7 +205,8 @@ final class GediController {
             }
         } catch {
             log.error("reply: \(String(describing: error), privacy: .public)")
-            show("Ollama-ക്ക് എന്തോ പറ്റി ഗഡീ.", for: 6)
+            await speak(Self.brainDeadReply())
+            return
         }
         listen.speakingEnded(at: Date())  // nothing said; still open the follow-up window
     }

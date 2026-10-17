@@ -45,3 +45,9 @@ private let clip = ClipInfo(id: "shorts_again", file: "s.m4a", text: "പിന�
     #expect(s.contains(#""enum":["none","shorts_again"]"#))
     #expect(s.contains(#""required":["speak","line","clip"]"#))
 }
+
+@Test func commentMessagesWithEventAskForReaction() {
+    let m = PromptBuilder(persona: "P").commentMessages(activity: "A", recentLines: [], event: "user pinned you")
+    #expect(m[1].content.contains("What just happened: user pinned you"))
+    #expect(!m[1].content.contains("what they are doing right now"))
+}

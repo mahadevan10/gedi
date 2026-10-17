@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import GediCore
 import GediSystem
@@ -15,6 +16,7 @@ struct GediDebug {
       reply <utterance> [activity] [--model m]   ask the LLM to answer the user
       activity [seconds]              print the classified frontmost activity every 2 s
       listen [seconds]                live mic: print transcripts and wake/utterance events
+      record [clip-id]                record clips.json lines that have no audio yet (or re-record one)
     """
 
     @MainActor
@@ -37,6 +39,7 @@ struct GediDebug {
             case "reply": try await reply(args, config)
             case "activity": try await activity(Double(args.first ?? "") ?? 30)
             case "listen": try await listen(Double(args.first ?? "") ?? 60, config)
+            case "record": try await record(args.first)
             default: fail(usage)
             }
         } catch {
@@ -88,7 +91,7 @@ struct GediDebug {
     static func brain(_ config: GediConfig) throws -> GediBrain {
         let clips = try ClipLibrary.load(from: GediPaths.clipsDir)
         let persona = Persona.load(from: GediPaths.personaFile)
-        return GediBrain(model: OllamaClient(baseURL: config.ollamaURL, model: config.model),
+        return GediBrain(model: config.chatModel(),
                          builder: PromptBuilder(persona: persona, clips: clips.clips))
     }
 
@@ -121,6 +124,44 @@ struct GediDebug {
             try await Task.sleep(for: .seconds(2))
         }
         print("---\n" + log.summary(now: Date()).promptText())
+    }
+
+    /// Walks clips.json: shows each line, records it from the mic, plays it back, keep or redo.
+    @MainActor
+    static func record(_ only: String?) async throws {
+        let dir = GediPaths.clipsDir
+        // Read the manifest directly: ClipLibrary.load drops clips whose audio is missing, which are the ones we want.
+        let all = try JSONDecoder().decode([ClipInfo].self, from: Data(contentsOf: dir.appendingPathComponent("clips.json")))
+        let todo = all.filter { clip in
+            only.map { clip.id == $0 } ?? !FileManager.default.fileExists(atPath: dir.appendingPathComponent(clip.file).path)
+        }
+        if todo.isEmpty { print(only.map { "no clip with id \($0)" } ?? "every clip already has audio") }
+        let settings: [String: Any] = [AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 44100, AVNumberOfChannelsKey: 1]
+        for (n, clip) in todo.enumerated() {
+            let url = dir.appendingPathComponent(clip.file)
+            // Record to a temp file so a skipped re-record never touches the existing clip.
+            let take = FileManager.default.temporaryDirectory.appendingPathComponent("gedi-take.m4a")
+            var keep = false
+            while !keep {
+                print("\n[\(n + 1)/\(todo.count)] \(clip.id)  (\(clip.use))\n    \(clip.text)")
+                print("Enter = record, s = skip, q = quit")
+                let cmd = readLine()
+                if cmd == "q" { return }
+                if cmd == "s" { break }
+                let rec = try AVAudioRecorder(url: take, settings: settings)
+                guard rec.record() else { fail("could not start recording (microphone permission for this terminal?)") }
+                print("● recording… Enter to stop")
+                _ = readLine()
+                rec.stop()
+                try await AudioOut().play(url: take)
+                print("Enter = keep, r = redo")
+                keep = readLine() != "r"
+            }
+            if keep {
+                try? FileManager.default.removeItem(at: url)
+                try FileManager.default.moveItem(at: take, to: url)
+            }
+        }
     }
 
     @MainActor

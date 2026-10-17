@@ -14,8 +14,11 @@ final class StageModel {
     }
 }
 
-/// Transparent, click-through, always-on-top strip along the bottom of the screen.
+/// Transparent, always-on-top strip along the bottom of the screen. Click-through except
+/// over Gedi himself (the controller toggles `ignoresMouseEvents`); his mouse events go to `onMouse`.
 final class OverlayPanel: NSPanel {
+    var onMouse: ((NSEvent) -> Void)?
+
     init(frame: NSRect) {
         super.init(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         isOpaque = false
@@ -28,21 +31,35 @@ final class OverlayPanel: NSPanel {
 
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
+
+    override func sendEvent(_ event: NSEvent) {
+        switch event.type {
+        case .leftMouseDown, .leftMouseDragged, .leftMouseUp, .rightMouseDown: onMouse?(event)
+        default: super.sendEvent(event)
+        }
+    }
 }
 
 @MainActor
-final class OverlayController {
+final class OverlayController: NSObject {
     static let height: CGFloat = 240
     private let panel: OverlayPanel
     private let stage: StageModel
+    private let onPinned: () -> Void
     private var timer: Timer?
     private var lastStep = Date()
     private var rng = SystemRandomNumberGenerator()
+    /// Last mouse position while dragging Gedi; nil when not dragging.
+    private var dragFrom: NSPoint?
+    private var dragged = false
 
-    init(stage: StageModel) {
+    init(stage: StageModel, onPinned: @escaping () -> Void) {
         self.stage = stage
+        self.onPinned = onPinned
         panel = OverlayPanel(frame: Self.frameForMainScreen())
+        super.init()
         panel.contentView = NSHostingView(rootView: StageView(stage: stage))
+        panel.onMouse = { [weak self] in self?.mouse($0) }
         NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
         ) { [weak self] _ in
@@ -70,6 +87,60 @@ final class OverlayController {
         lastStep = now
         let maxX = Double(panel.frame.width) - StageView.spriteWidth
         stage.walker.step(dt: dt, minX: 0, maxX: maxX, random: &rng)
+        // Catch clicks only over Gedi; everywhere else the strip stays click-through.
+        if dragFrom == nil {
+            let sprite = NSRect(x: panel.frame.minX + stage.walker.x, y: panel.frame.minY,
+                                width: StageView.spriteWidth, height: StageView.spriteHeight)
+            panel.ignoresMouseEvents = !sprite.contains(NSEvent.mouseLocation)
+        }
+    }
+
+    // MARK: mouse: drag to move and pin, click for the menu
+
+    private func mouse(_ event: NSEvent) {
+        let at = NSEvent.mouseLocation
+        switch event.type {
+        case .leftMouseDown:
+            dragFrom = at
+            dragged = false
+        case .leftMouseDragged:
+            guard let from = dragFrom else { return }
+            dragged = true
+            stage.walker.pinned = true
+            dragFrom = at
+            let maxX = Double(panel.frame.width) - StageView.spriteWidth
+            stage.walker.x = min(max(stage.walker.x + at.x - from.x, 0), maxX)
+            let screen = (panel.screen ?? NSScreen.main ?? NSScreen.screens[0]).visibleFrame
+            let y = min(max(panel.frame.minY + at.y - from.y, screen.minY), screen.maxY - panel.frame.height)
+            panel.setFrameOrigin(NSPoint(x: panel.frame.minX, y: y))
+        case .leftMouseUp:
+            dragFrom = nil
+            if dragged { onPinned() } else { showMenu(event) }
+        default:
+            showMenu(event)
+        }
+    }
+
+    private func showMenu(_ event: NSEvent) {
+        let menu = NSMenu()
+        let pinned = stage.walker.pinned
+        let item = NSMenuItem(title: pinned ? "Unpin (let him walk)" : "Pin here",
+                              action: #selector(togglePin), keyEquivalent: "")
+        item.target = self
+        menu.addItem(item)
+        let hint = NSMenuItem(title: "Drag him to pin him anywhere", action: nil, keyEquivalent: "")
+        hint.isEnabled = false
+        menu.addItem(hint)
+        if let view = panel.contentView { NSMenu.popUpContextMenu(menu, with: event, for: view) }
+    }
+
+    @objc private func togglePin() {
+        stage.walker.pinned.toggle()
+        if stage.walker.pinned {
+            onPinned()
+        } else {
+            panel.setFrame(Self.frameForMainScreen(), display: true)  // back down to the Dock
+        }
     }
 }
 

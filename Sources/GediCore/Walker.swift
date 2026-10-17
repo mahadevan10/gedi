@@ -10,9 +10,12 @@ public struct Walker: Sendable {
         case talking
     }
 
-    public private(set) var x: Double
+    /// Settable so the user can drag Gedi around.
+    public var x: Double
     public private(set) var facingRight: Bool
     public private(set) var mode: Mode = .walking
+    /// Put down somewhere by the user: stays at `x` (still talks) until unpinned.
+    public var pinned = false
     public var speed: Double = 40
     /// Chance per second of stopping for a rest while walking.
     public var restChancePerSecond: Double = 0.08
@@ -25,6 +28,7 @@ public struct Walker: Sendable {
 
     public mutating func step<R: RandomNumberGenerator>(dt: Double, minX: Double, maxX: Double, random: inout R) {
         clock += dt
+        if pinned { return }
         switch mode {
         case .talking:
             return

@@ -14,6 +14,11 @@ public struct GediConfig: Codable, Equatable, Sendable {
     public var piperVoice: String
     public var piperDataDir: String
     public var piperPort: Int
+    /// OpenAI-compatible hosted brain (Gemini by default); `null` in config.json → local Ollama.
+    public var chatURL: URL?
+    public var chatAPIKey: String?
+    /// Tried in order when the main brain fails (rate limit, outage, bad reply).
+    public var fallbacks: [ChatEndpoint]
 
     public init(
         model: String,
@@ -26,7 +31,10 @@ public struct GediConfig: Codable, Equatable, Sendable {
         piperPython: String,
         piperVoice: String,
         piperDataDir: String,
-        piperPort: Int
+        piperPort: Int,
+        chatURL: URL? = nil,
+        chatAPIKey: String? = nil,
+        fallbacks: [ChatEndpoint] = []
     ) {
         self.model = model
         self.ollamaURL = ollamaURL
@@ -39,10 +47,13 @@ public struct GediConfig: Codable, Equatable, Sendable {
         self.piperVoice = piperVoice
         self.piperDataDir = piperDataDir
         self.piperPort = piperPort
+        self.chatURL = chatURL
+        self.chatAPIKey = chatAPIKey
+        self.fallbacks = fallbacks
     }
 
     public static let `default` = GediConfig(
-        model: "qwen3.5:9b",
+        model: "gemini-flash-latest",
         ollamaURL: URL(string: "http://127.0.0.1:11434")!,
         commentIntervalSeconds: 30,
         localeID: "ml-IN",
@@ -52,7 +63,8 @@ public struct GediConfig: Codable, Equatable, Sendable {
         piperPython: "~/Library/Application Support/Gedi/piper-venv/bin/python",
         piperVoice: "ml_IN-arjun-medium",
         piperDataDir: "~/Library/Application Support/Gedi/voices",
-        piperPort: 5917
+        piperPort: 5917,
+        chatURL: URL(string: "https://generativelanguage.googleapis.com/v1beta/openai/")!
     )
 
     public init(from decoder: Decoder) throws {
@@ -69,6 +81,18 @@ public struct GediConfig: Codable, Equatable, Sendable {
         piperVoice = try c.decodeIfPresent(String.self, forKey: .piperVoice) ?? d.piperVoice
         piperDataDir = try c.decodeIfPresent(String.self, forKey: .piperDataDir) ?? d.piperDataDir
         piperPort = try c.decodeIfPresent(Int.self, forKey: .piperPort) ?? d.piperPort
+        // Present-but-null must stay nil (Ollama), so only an absent key takes the default.
+        chatURL = c.contains(.chatURL) ? try c.decodeIfPresent(URL.self, forKey: .chatURL) : d.chatURL
+        chatAPIKey = try c.decodeIfPresent(String.self, forKey: .chatAPIKey)
+        fallbacks = try c.decodeIfPresent([ChatEndpoint].self, forKey: .fallbacks) ?? d.fallbacks
+    }
+
+    /// The brain this config asks for: hosted when `chatURL` is set, local Ollama otherwise,
+    /// wrapped in a `ChatRouter` when `fallbacks` lists backups.
+    public func chatModel() -> any ChatModel {
+        let primary: any ChatModel = chatURL.map { OpenAIClient(baseURL: $0, apiKey: chatAPIKey ?? "", model: model) }
+            ?? OllamaClient(baseURL: ollamaURL, model: model)
+        return fallbacks.isEmpty ? primary : ChatRouter([primary] + fallbacks.map { $0.client() })
     }
 
     /// Missing file → defaults. Malformed file → throws (so a typo is reported, not silently ignored).

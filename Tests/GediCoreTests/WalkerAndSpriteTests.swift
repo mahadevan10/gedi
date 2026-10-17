@@ -81,3 +81,25 @@ struct SplitMix64: RandomNumberGenerator {
         }
     }
 }
+
+@Test func pinnedStaysPutButStillTalks() {
+    var w = Walker(x: 100)
+    w.restChancePerSecond = 0
+    w.pinned = true
+    var rng = SplitMix64(state: 1)
+    w.setTalking(true)
+    var seen = Set<String>()
+    for _ in 0..<10 {
+        w.step(dt: 0.1, minX: 0, maxX: 1000, random: &rng)
+        seen.insert("\(w.frame)")
+    }
+    #expect(w.x == 100)
+    #expect(seen == ["talk", "idle"])
+    w.setTalking(false)
+    w.step(dt: 5, minX: 0, maxX: 1000, random: &rng)
+    #expect(w.x == 100)
+    w.pinned = false
+    w.step(dt: 0.5, minX: 0, maxX: 1000, random: &rng)
+    w.step(dt: 0.5, minX: 0, maxX: 1000, random: &rng)  // first step only ends the rest
+    #expect(w.x != 100)
+}

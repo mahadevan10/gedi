@@ -19,9 +19,9 @@ public actor GediBrain {
         builder.clips = clips
     }
 
-    /// Unprompted comment about the activity. Nil if the model output was unusable.
-    public func comment(activity: String) async throws -> GediReply? {
-        let messages = builder.commentMessages(activity: activity, recentLines: recentLines)
+    /// Unprompted comment about the activity (or about `event`). Nil if the model output was unusable.
+    public func comment(activity: String, event: String? = nil) async throws -> GediReply? {
+        let messages = builder.commentMessages(activity: activity, recentLines: recentLines, event: event)
         let raw = try await model.chat(messages, schema: builder.responseSchema())
         guard let reply = GediReply.parse(raw) else { return nil }
         if reply.speak { remember(reply.line) }

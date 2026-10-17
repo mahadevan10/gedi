@@ -44,8 +44,8 @@ public struct PromptBuilder: Sendable {
         return persona.trimmingCharacters(in: .whitespacesAndNewlines) + "\n\n" + rules
     }
 
-    /// Unprompted comment on the timer.
-    public func commentMessages(activity: String, recentLines: [String]) -> [ChatMessage] {
+    /// Unprompted comment on the timer, or a reaction to `event` when given.
+    public func commentMessages(activity: String, recentLines: [String], event: String? = nil) -> [ChatMessage] {
         var user = "What the user is doing:\n\(activity)\n\n"
         if recentLines.isEmpty {
             user += "You have not said anything yet.\n"
@@ -53,7 +53,11 @@ public struct PromptBuilder: Sendable {
             user += "Your recent lines (do not repeat these):\n"
             user += recentLines.map { "- \($0)" }.joined(separator: "\n") + "\n"
         }
-        user += "\nSay one new short line about what they are doing right now."
+        if let event {
+            user += "\nWhat just happened: \(event)\nReact to it in one new short line."
+        } else {
+            user += "\nSay one new short line about what they are doing right now."
+        }
         return [.system(systemPrompt()), .user(user)]
     }
 
