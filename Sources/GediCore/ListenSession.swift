@@ -15,8 +15,11 @@ public enum ListenEvent: Equatable, Sendable {
 /// current stretch of speech (`isFinal == false`) or the settled text for it (`isFinal == true`).
 /// The user is considered done when the captured text has not changed for `silence` seconds.
 ///
-/// While Gedi is speaking (and `echoTail` seconds after) everything is ignored, so Gedi
-/// never wakes itself up by saying "ഗഡീ".
+/// The wake word wins over a reply still being fetched: that reply is dropped and a fresh
+/// capture starts. While Gedi is speaking (and `echoTail` seconds after) everything is
+/// ignored, so Gedi never wakes itself up by saying "ഗഡീ". That includes the spoken
+/// "പറ ഗഡീ" ack after every wake word; capture stays open and its wait restarts after it.
+/// shortcut: no barge-in while speaking; needs echo cancellation, which failed on a Bluetooth mic.
 public struct ListenSession: Sendable {
     public enum Phase: Equatable, Sendable {
         case idle, capturing, waitingForReply, followUp
@@ -26,7 +29,11 @@ public struct ListenSession: Sendable {
     public var silence: TimeInterval
     public var followUpWindow: TimeInterval
     public var maxWaitAfterWake: TimeInterval = 6
-    public var echoTail: TimeInterval = 0.7
+    /// The recogniser lags 1–2 s, so Gedi's own words keep arriving after playback ends.
+    public var echoTail: TimeInterval = 2
+    /// The recogniser's final result for the wake utterance can land after `.utterance`;
+    /// it must not count as a second call.
+    public var rewakeGrace: TimeInterval = 2
 
     private let matcher: WakeWordMatcher
     private var committed: [String] = []
@@ -35,6 +42,11 @@ public struct ListenSession: Sendable {
     private var phaseStarted = Date.distantPast
     private var speaking = false
     private var deafUntil = Date.distantPast
+    private var utteranceAt = Date.distantPast
+    /// Partial results repeat the whole segment so far (it can run for a minute before a
+    /// final). Words before `used` were already handled; only later words are new.
+    private var used = 0
+    private var segmentWords = 0
 
     public init(matcher: WakeWordMatcher, silence: TimeInterval = 1.5, followUpWindow: TimeInterval = 8) {
         self.matcher = matcher
@@ -47,23 +59,31 @@ public struct ListenSession: Sendable {
     }
 
     public mutating func heard(_ text: String, isFinal: Bool, at now: Date) -> ListenEvent? {
-        if speaking || now < deafUntil { return nil }
-        switch phase {
-        case .idle:
-            guard let rest = matcher.remainder(after: text) else { return nil }
+        let words = text.split(whereSeparator: \.isWhitespace)
+        let fresh = words.dropFirst(used).joined(separator: " ")
+        segmentWords = words.count
+        defer { if isFinal { used = 0; segmentWords = 0 } }  // next result starts a new segment
+        if speaking || now < deafUntil {
+            used = words.count
+            return nil
+        }
+        let rewakeBlocked = phase == .waitingForReply && now.timeIntervalSince(utteranceAt) < rewakeGrace
+        if phase != .capturing, !rewakeBlocked, let rest = matcher.remainder(after: fresh) {
+            used = words.count - rest.split(whereSeparator: \.isWhitespace).count
             enterCapturing(at: now)
             absorb(rest, isFinal: isFinal, at: now)
             return .wake
+        }
+        switch phase {
+        case .idle, .waitingForReply:
+            return nil
         case .followUp:
-            let piece = matcher.remainder(after: text) ?? text
-            guard !piece.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
+            guard !fresh.isEmpty else { return nil }
             enterCapturing(at: now)
-            absorb(piece, isFinal: isFinal, at: now)
+            absorb(fresh, isFinal: isFinal, at: now)
             return nil
         case .capturing:
-            absorb(matcher.remainder(after: text) ?? text, isFinal: isFinal, at: now)
-            return nil
-        case .waitingForReply:
+            absorb(matcher.remainder(after: fresh) ?? fresh, isFinal: isFinal, at: now)
             return nil
         }
     }
@@ -76,10 +96,13 @@ public struct ListenSession: Sendable {
             if text.isEmpty {
                 if now.timeIntervalSince(phaseStarted) >= maxWaitAfterWake {
                     phase = .idle
+                    used = segmentWords
                     return .gaveUp
                 }
             } else if now.timeIntervalSince(lastChange) >= silence {
                 phase = .waitingForReply
+                utteranceAt = now
+                used = segmentWords
                 return .utterance(text)
             }
         case .followUp:
@@ -105,6 +128,10 @@ public struct ListenSession: Sendable {
         if phase == .waitingForReply {
             phase = .followUp
             phaseStarted = now
+        }
+        if phase == .capturing {  // the wake ack: give the user the full wait after we stop talking
+            phaseStarted = deafUntil
+            lastChange = deafUntil
         }
     }
 

@@ -58,9 +58,9 @@ private func session() -> ListenSession {
     #expect(s.phase == .followUp)
     #expect(s.heard("pinne", isFinal: false, at: at(5.2)) == nil)        // inside echo tail: ignored
     #expect(s.phase == .followUp)
-    _ = s.heard("pinne enthund", isFinal: false, at: at(6))
+    _ = s.heard("pinne enthund", isFinal: false, at: at(7.5))
     #expect(s.phase == .capturing)
-    #expect(s.tick(at: at(7.6)) == .utterance("pinne enthund"))
+    #expect(s.tick(at: at(9.1)) == .utterance("enthund"))
 }
 
 @Test func followUpWindowExpires() {
@@ -73,11 +73,56 @@ private func session() -> ListenSession {
     #expect(s.phase == .idle)
 }
 
+@Test func echoWithoutWakeWordIsIgnored() {
+    var s = session()
+    s.speakingStarted()
+    #expect(s.heard("yenthootta paranje", isFinal: true, at: at(0)) == nil)
+    s.speakingEnded(at: at(1))
+    #expect(s.heard("pinne", isFinal: true, at: at(1.3)) == nil)  // echo tail
+    #expect(s.phase == .idle)
+}
+
 @Test func gediSpeakingNeverWakesItself() {
     var s = session()
     s.speakingStarted()
     #expect(s.heard("yenthootta gadi", isFinal: true, at: at(0)) == nil)
     s.speakingEnded(at: at(1))
     #expect(s.heard("gadi", isFinal: true, at: at(1.3)) == nil)   // echo tail
-    #expect(s.heard("gadi", isFinal: true, at: at(2)) == .wake)
+    #expect(s.heard("gadi", isFinal: true, at: at(3.5)) == .wake)
+}
+
+@Test func wakeWordDropsPendingReply() {
+    var s = session()
+    _ = s.heard("gadi vaa", isFinal: false, at: at(0))
+    _ = s.tick(at: at(2))                                          // utterance → waitingForReply
+    #expect(s.heard("gadi vaa", isFinal: true, at: at(2.5)) == nil) // late final of the same call
+    #expect(s.heard("gadi pinne", isFinal: false, at: at(5)) == .wake)
+    #expect(s.tick(at: at(6.6)) == .utterance("pinne"))
+}
+
+// From a live MacBook-mic run: one segment ran 75 s, every partial repeating all of it.
+@Test func longSegmentDoesNotReuseOldWakeWord() {
+    var s = ListenSession(matcher: WakeWordMatcher(wakeWords: ["gedi", "edi"]), silence: 1.5, followUpWindow: 8)
+    #expect(s.heard("Gi ki edi", isFinal: false, at: at(0)) == .wake)
+    _ = s.heard("Gi ki edi Gi kihi nav", isFinal: false, at: at(1))
+    #expect(s.tick(at: at(2.6)) == .utterance("Gi kihi nav"))
+    s.speakingStarted()
+    _ = s.heard("Gi ki edi Gi kihi nav yenthootta", isFinal: false, at: at(3))   // Gedi's echo
+    s.speakingEnded(at: at(4))
+    #expect(s.heard("Gi ki edi Gi kihi nav yenthootta", isFinal: false, at: at(6.5)) == nil)
+    #expect(s.phase == .followUp)
+    _ = s.heard("Gi ki edi Gi kihi nav yenthootta enthu vishesham", isFinal: false, at: at(7))
+    #expect(s.tick(at: at(8.6)) == .utterance("enthu vishesham"))
+}
+
+@Test func wakeAckKeepsCapturing() {
+    var s = session()
+    #expect(s.heard("gadi", isFinal: true, at: at(0)) == .wake)
+    s.speakingStarted()                                                 // "പറ ഗഡീ"
+    #expect(s.heard("para gadiye", isFinal: true, at: at(1)) == nil)    // own ack: no re-wake
+    s.speakingEnded(at: at(1.5))
+    #expect(s.tick(at: at(6)) == nil)                                   // wait restarted at 3.5
+    #expect(s.phase == .capturing)
+    _ = s.heard("enthu vishesham", isFinal: false, at: at(4))
+    #expect(s.tick(at: at(5.6)) == .utterance("enthu vishesham"))
 }

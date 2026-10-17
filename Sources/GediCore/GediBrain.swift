@@ -32,6 +32,7 @@ public actor GediBrain {
     public func reply(to utterance: String, activity: String) async throws -> GediReply? {
         let messages = builder.replyMessages(activity: activity, utterance: utterance, conversation: conversation)
         let raw = try await model.chat(messages, schema: builder.responseSchema())
+        try Task.checkCancellation()  // superseded by a newer call: keep it out of the conversation
         guard let reply = GediReply.parse(raw) else { return nil }
         conversation.append(.user(utterance))
         conversation.append(.assistant(Self.encode(reply)))

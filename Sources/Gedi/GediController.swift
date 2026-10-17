@@ -27,6 +27,8 @@ final class GediController {
     private var commentInFlight = false
     private var replyInFlight = false
     private var speaking = false
+    /// The one reply being worked on. A new "gedi" cancels it, so calls never stack up.
+    private var replyTask: Task<Void, Never>?
     private var lastSpokeAt = Date()
     private var timers: [Timer] = []
 
@@ -151,12 +153,17 @@ final class GediController {
         switch event {
         case .wake:
             log.info("wake")
+            replyTask?.cancel()
+            replyTask = nil
+            replyInFlight = false
             NSSound(named: "Tink")?.play()
             stage.bubble = "പറ ഗഡീ…"
+            // Mic is deaf while this plays (+ echo tail): the user talks after the ack.
+            Task { await speak(GediReply(speak: true, line: "പറ ഗഡീ…")) }
         case .utterance(let text):
             log.info("utterance: \(text, privacy: .public)")
             stage.bubble = "ഹ്മ്…"
-            Task { await reply(to: text) }
+            replyTask = Task { await reply(to: text) }
         case .gaveUp:
             if stage.bubble == "പറ ഗഡീ…" { stage.bubble = nil }
             Task { await brain.endConversation() }
@@ -202,15 +209,18 @@ final class GediController {
     private func reply(to text: String) async {
         replyInFlight = true
         defer {
-            replyInFlight = false
+            if !Task.isCancelled { replyInFlight = false }  // a cancelled reply was already cleared
             lastSpokeAt = Date()
         }
         do {
-            if let r = try await brain.reply(to: text, activity: activityText), r.speak {
+            let r = try await brain.reply(to: text, activity: activityText)
+            guard !Task.isCancelled else { return }  // the user called again while we were thinking
+            if let r, r.speak {
                 await speak(r)
                 return
             }
         } catch {
+            guard !Task.isCancelled else { return }
             log.error("reply: \(String(describing: error), privacy: .public)")
             await speak(Self.brainDeadReply())
             return
@@ -219,7 +229,10 @@ final class GediController {
     }
 
     private func speak(_ r: GediReply) async {
-        while speaking { try? await Task.sleep(for: .milliseconds(100)) }
+        while speaking {
+            if Task.isCancelled { return }  // cancelled sleep returns at once; don't spin
+            try? await Task.sleep(for: .milliseconds(100))
+        }
         speaking = true
         let text = voice.displayText(for: r)
         stage.bubble = text

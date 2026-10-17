@@ -39,7 +39,7 @@ public struct ChatRouter: ChatModel {
             do {
                 return try await model.chat(messages, schema: schema)
             } catch {
-                log.error("brain \(i) (\(String(describing: type(of: model)))) failed: \(String(describing: error))")
+                log.error("brain \(i, privacy: .public) failed: \(String(describing: error), privacy: .public)")
                 lastError = error
             }
         }

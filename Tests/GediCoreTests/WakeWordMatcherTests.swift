@@ -5,7 +5,7 @@ private let matcher = WakeWordMatcher(wakeWords: GediConfig.default.wakeWords)
 
 // Spellings below were produced by Apple's ml-IN recogniser from Piper saying ഗഡീ.
 @Test func matchesRecognizerSpellings() {
-    for heard in ["gadhi", "gadi", "gadiye", "Gadi.", "gedi", "gadeee", "geddi", "ഗഡീ", "ഗെഡി"] {
+    for heard in ["gadhi", "gadi", "gadiye", "Gadi.", "gedi", "gadeee", "geddi", "ഗഡീ", "ഗെഡി", "edi", "ede", "Yedi", "kedi", "Gandhi", "jedi", "Daddy", "ഗടി", "എടി"] {
         #expect(matcher.remainder(after: heard) == "", "should wake on \(heard)")
     }
 }

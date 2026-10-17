@@ -55,9 +55,24 @@ public struct GediConfig: Codable, Equatable, Sendable {
     public static let `default` = GediConfig(
         model: "gemini-flash-latest",
         ollamaURL: URL(string: "http://127.0.0.1:11434")!,
-        commentIntervalSeconds: 30,
+        commentIntervalSeconds: 60,
         localeID: "ml-IN",
-        wakeWords: ["gadi", "gadhi", "gade", "gedi", "gedhi", "gede", "ഗഡി", "ഗെഡി"],
+        // Every spelling the ml-IN recogniser has produced (or plausibly will) for ഗഡീ:
+        // dropped/swapped soft g ("ede", "kedi"), English look-alikes ("daddy", "ready").
+        wakeWords: [
+            "gadi", "gadhi", "gade", "gadee", "gady", "gadey", "gadie", "gadiye", "gaadi",
+            "gaadhi", "gaade", "gadhe", "gadhey", "gaddi", "gaddy", "gadai", "gaday", "gadya",
+            "gedi", "gedhi", "gede", "gedy", "gedee", "gedey", "gedhe", "geddy", "gedai", "gedia",
+            "gidi", "gidhi", "geedi", "geedhi", "gethi", "gethe", "gathi", "gathe", "gati", "gate",
+            "gaty", "gatty", "getty", "gettie", "gari", "gary", "garie", "geri", "gerry", "gandhi",
+            "giddy", "kadi", "kadhi", "kade", "kady", "kedi", "kedhi", "kede", "kedy", "kethi",
+            "kathi", "katy", "kati", "kaddy", "keddy", "kidi", "kiddy", "katie", "jedi", "jadi",
+            "jady", "jedhi", "jeddy", "chedi", "chadi", "ede", "edi", "edee", "edy", "eddy",
+            "eddie", "edie", "edhi", "edhe", "edey", "yede", "yedi", "yedy", "yeddy", "yedhi",
+            "hedi", "hedy", "hadi", "daddy", "get", "ready", "ഗഡി", "ഗെഡി", "ഗടി", "ഗേഡി", "ഗഡ്ഡി",
+            "ഗെഡ്ഡി", "ഗദി", "ഗെദി", "ഗാഡി", "ഗേടി", "ഗെടി", "ഗഢി", "ഗഡിയേ", "കടി", "കെഡി", "കേടി",
+            "ഖഡി", "ജെഡി", "ജഡി", "എടി", "എഡി", "യെടി", "യെഡി"
+        ],
         silenceSeconds: 1.5,
         followUpSeconds: 8,
         piperPython: "~/Library/Application Support/Gedi/piper-venv/bin/python",

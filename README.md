@@ -29,6 +29,20 @@ open build/Gedi.app
 The first launch asks for the microphone, and the first time you're in Chrome or Safari
 it asks to control the browser. Quit from the **ഗഡി** menu-bar item.
 
+## Talking to him
+
+Say "gedi" (or "gadi", "gadee", anything close). He answers **"പറ ഗഡീ…"**, then you talk;
+he waits until you've been quiet for `silenceSeconds`. After he replies you have
+`followUpSeconds` to keep going without the wake word. Saying "gedi" again while he's
+still thinking drops that reply and starts over.
+
+The `ml-IN` recogniser spells ഗഡീ a hundred ways ("kedi", "eddy", "daddy"…), so the
+default wake-word list is long. If he wakes up too easily, set a shorter `wakeWords`.
+He can't be interrupted while he's talking: the mic ignores everything until about two
+seconds after he stops, so he never wakes himself up.
+
+On his own, he comments on what you're doing every `commentIntervalSeconds` (60 by default).
+
 ## Customising
 
 Everything lives in `~/Library/Application Support/Gedi/`:
